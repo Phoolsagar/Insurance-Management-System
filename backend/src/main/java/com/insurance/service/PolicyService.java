@@ -1,0 +1,12 @@
+package com.insurance.service;
+import com.insurance.dto.PolicyRequest; import com.insurance.entity.*; import com.insurance.repository.*; import org.springframework.stereotype.Service; import java.time.LocalDate; import java.util.*;
+@Service public class PolicyService {
+ private final PolicyRepository policies; private final UserRepository users; private final PaymentRepository payments;
+ public PolicyService(PolicyRepository p,UserRepository u,PaymentRepository pay){policies=p;users=u;payments=pay;}
+ public List<Policy> all(){return policies.findAll();}
+ public List<Policy> mine(String email){User u=users.findByEmail(email).orElseThrow();return policies.findByCustomerId(u.getId());}
+ public Policy create(PolicyRequest r){Policy p=new Policy();p.setPolicyNumber("POL-"+UUID.randomUUID().toString().substring(0,8).toUpperCase());p.setName(r.name());p.setType(r.type());p.setDescription(r.description());p.setPremium(r.premium());p.setCoverageAmount(r.coverageAmount());p.setTermMonths(r.termMonths()==null?12:r.termMonths());p.setStatus(PolicyStatus.ACTIVE);return policies.save(p);}
+ public Policy update(Long id,PolicyRequest r){Policy p=policies.findById(id).orElseThrow(()->new RuntimeException("Policy not found"));if(p.getCustomer()!=null)throw new RuntimeException("Purchased policies cannot be edited");p.setName(r.name());p.setType(r.type());p.setDescription(r.description());p.setPremium(r.premium());p.setCoverageAmount(r.coverageAmount());p.setTermMonths(r.termMonths()==null?12:r.termMonths());return policies.save(p);}
+ public void delete(Long id){Policy p=policies.findById(id).orElseThrow(()->new RuntimeException("Policy not found"));if(p.getCustomer()!=null)throw new RuntimeException("Purchased policies cannot be deleted");policies.delete(p);}
+ public Policy purchase(Long id,String email){Policy p=policies.findById(id).orElseThrow(()->new RuntimeException("Policy not found"));User u=users.findByEmail(email).orElseThrow();if(p.getCustomer()!=null)throw new RuntimeException("Policy already purchased");p.setCustomer(u);p.setStartDate(LocalDate.now());p.setEndDate(LocalDate.now().plusMonths(p.getTermMonths()));p.setStatus(PolicyStatus.ACTIVE);p=policies.save(p);Payment pay=new Payment();pay.setTransactionId("TXN-"+UUID.randomUUID().toString().substring(0,10).toUpperCase());pay.setCustomer(u);pay.setPolicy(p);pay.setAmount(p.getPremium());payments.save(pay);return p;}
+}

@@ -1,0 +1,10 @@
+package com.insurance.controller;
+import com.insurance.dto.UserRequest; import com.insurance.entity.User; import com.insurance.repository.UserRepository; import jakarta.validation.Valid; import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.security.crypto.password.PasswordEncoder; import org.springframework.security.core.Authentication; import org.springframework.web.bind.annotation.*; import java.util.*;
+@RestController @RequestMapping("/users") @PreAuthorize("hasRole('ADMIN')") public class UserController {
+ private final UserRepository repo;private final PasswordEncoder encoder;public UserController(UserRepository r,PasswordEncoder e){repo=r;encoder=e;}
+ @GetMapping public List<User> all(){return repo.findAll();}
+ @PostMapping public User create(@Valid @RequestBody UserRequest r){if(repo.findByEmail(r.email()).isPresent())throw new RuntimeException("Email already registered");User u=new User();apply(u,r,true);return repo.save(u);}
+ @PutMapping("/{id}") public User update(@PathVariable Long id,@Valid @RequestBody UserRequest r){User u=repo.findById(id).orElseThrow(()->new RuntimeException("User not found"));repo.findByEmail(r.email()).filter(existing->!existing.getId().equals(id)).ifPresent(existing->{throw new RuntimeException("Email already registered");});apply(u,r,false);return repo.save(u);}
+ @DeleteMapping("/{id}") public void delete(@PathVariable Long id,Authentication a){User u=repo.findById(id).orElseThrow(()->new RuntimeException("User not found"));if(u.getEmail().equals(a.getName()))throw new RuntimeException("You cannot delete your own account");repo.delete(u);}
+ private void apply(User u,UserRequest r,boolean requirePassword){u.setName(r.name());u.setEmail(r.email());u.setRole(r.role());u.setPhone(r.phone());u.setAddress(r.address());if(requirePassword&&(r.password()==null||r.password().isBlank()))throw new RuntimeException("Password is required");if(r.password()!=null&&!r.password().isBlank())u.setPassword(encoder.encode(r.password()));}
+}
